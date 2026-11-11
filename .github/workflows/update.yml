@@ -38,7 +38,7 @@ jobs:
           git add data.json
           git commit -m "Aggiorna turni" && git push
       - name: Prepara il sito
-        run: mkdir _site && cp index.html data.json _site/
+        run: mkdir _site && cp index.html data.json favicon.svg _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
