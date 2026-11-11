@@ -1,0 +1,46 @@
+name: Aggiorna turni e pubblica
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Leggi i turni da Vallelunga
+        id: fetch
+        run: node scripts/update.mjs
+      - name: Salva i dati se sono cambiati
+        if: steps.fetch.outputs.changed == 'true'
+        run: |
+          git config user.name "track-day-roma-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data.json
+          git commit -m "Aggiorna turni" && git push
+      - name: Prepara il sito
+        run: mkdir _site && cp index.html data.json _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
