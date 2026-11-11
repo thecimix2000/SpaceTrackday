@@ -2,6 +2,7 @@ name: Aggiorna turni e pubblica
 
 on:
   # Ogni 15 minuti, 3 minuti prima di ogni quarto d'ora (orari UTC; GitHub può partire in ritardo).
+  # Sito pubblicato su https://thecimix2000.github.io/SpaceTrackday/
   schedule:
     - cron: '12,27,42,57 * * * *'
   push:
