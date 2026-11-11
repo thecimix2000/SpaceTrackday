@@ -16,7 +16,7 @@ async function fetchSede(id) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'TrackDayRoma/1.0 (riepilogo non ufficiale dei turni; aggiornamento ogni 15 minuti)',
+      'User-Agent': 'TrackDayVL/1.0 (riepilogo non ufficiale dei turni; aggiornamento ogni 15 minuti)',
     },
     body: new URLSearchParams({ action: 'motorsportCalendar', sede_id: String(id), start, end, timeZone: 'local' }),
     signal: AbortSignal.timeout(30000),
