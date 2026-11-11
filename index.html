@@ -64,6 +64,21 @@ h1 { font: 700 30px/1.1 var(--display); margin: 0; letter-spacing: -0.01em; }
 
 .day { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .day.past { opacity: .62; }
+.day-body, .det-wrap { display: grid; grid-template-rows: 1fr; }
+.day-inner, .det-inner { min-height: 0; overflow: hidden; }
+.day-body.enter, .det-wrap.enter { animation: grow .34s cubic-bezier(.2, .8, .2, 1); }
+.day-body.leave, .det-wrap.leave { animation: shrink .22s cubic-bezier(.4, 0, .6, 1) forwards; }
+.day-body.enter .row { animation: rise .4s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 22ms + 60ms); }
+.day-body.enter .strip .slot { animation: pop .45s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 18ms + 40ms); transform-origin: left center; }
+.det-wrap.enter .detail > * { animation: rise .38s cubic-bezier(.2, .8, .2, 1) both; animation-delay: 60ms; }
+.day.just .day-chev, .row.just .chev { animation: turn .3s cubic-bezier(.2, .8, .2, 1); }
+.day.closing .day-chev, .row.closing .chev { transform: rotate(0deg) !important; }
+@keyframes grow { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
+@keyframes shrink { from { grid-template-rows: 1fr; opacity: 1; } to { grid-template-rows: 0fr; opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scaleX(.2); } to { opacity: 1; transform: none; } }
+@keyframes turn { from { transform: rotate(0deg); } to { transform: rotate(90deg); } }
+@media (prefers-reduced-motion: reduce) { .day-body, .det-wrap, .row, .strip .slot, .detail > *, .day-chev, .chev { animation: none !important; } }
 .month { font: 600 20px/1.2 var(--display); margin: 10px 0 -4px; text-transform: capitalize; text-wrap: balance; }
 .month:first-child { margin-top: 0; }
 .day-head { width: 100%; text-align: left; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 16px 18px; }
@@ -173,6 +188,14 @@ footer a { color: var(--accent); }
     GA: { name: 'Gruppo A', color: 'var(--grp)' }, GB: { name: 'Gruppo B', color: 'var(--str)' },
     GC: { name: 'Gruppo C', color: 'var(--neo)' }, GD: { name: 'Gruppo D', color: 'var(--rac)' }
   };
+  var anim = {};
+  var calm = false; try { calm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (x) {}
+  function later(el, cls, fn) {
+    if (calm || !el) { fn(); return; }
+    el.classList.add(cls); var done = false;
+    var go = function () { if (!done) { done = true; fn(); } };
+    el.addEventListener('animationend', go, { once: true }); setTimeout(go, 280);
+  }
   var state = { mode: 'auto', minFree: 1, showPast: false, kinds: {}, open: null, days: {} };
   try { var m = localStorage.getItem('vl-mode'); if (m === 'auto' || m === 'moto') state.mode = m; } catch (e) {}
 
@@ -242,9 +265,9 @@ footer a { color: var(--accent); }
     var lo = Math.floor(Math.min.apply(null, timed.map(function (t) { return t.start; })) / 60) * 60;
     var hi = Math.ceil(Math.max.apply(null, timed.map(function (t) { return t.end; })) / 60) * 60;
     var span = hi - lo, h = '<div class="strip"><div class="axis"></div>';
-    timed.forEach(function (t) {
+    timed.forEach(function (t, i) {
       h += '<button type="button" class="slot' + (t.free <= 0 ? ' full' : '') + '" data-open="' + t.id + '"' + (state.open === t.id ? ' aria-current="true"' : '') +
-        ' style="--c:' + kindOf(t).color + ';left:' + ((t.start - lo) / span * 100) + '%;width:' + ((t.end - t.start) / span * 100) + '%"' +
+        ' style="--i:' + i + ';--c:' + kindOf(t).color + ';left:' + ((t.start - lo) / span * 100) + '%;width:' + ((t.end - t.start) / span * 100) + '%"' +
         ' title="' + hm(t.start) + ' ' + esc(kindOf(t).name) + ' · ' + seatInfo(t).text + '" aria-label="' + hm(t.start) + ' ' + esc(kindOf(t).name) + ', ' + seatInfo(t).text + '"></button>';
     });
     for (var x = lo; x <= hi; x += 60) {
@@ -281,28 +304,27 @@ footer a { color: var(--accent); }
       var lo = Math.min.apply(null, list.map(function (t) { return t.start; }));
       var hi = Math.max.apply(null, list.map(function (t) { return t.end || t.start; }));
       var best = Math.max.apply(null, list.map(function (t) { return t.free; }));
-      var from = Math.min.apply(null, list.map(function (t) { return iso === today ? t.sameDay : t.price; }));
       var dk = []; list.forEach(function (t) { if (dk.indexOf(t.kind) < 0) dk.push(t.kind); });
-      html += '<section class="day' + (iso < today ? ' past' : '') + (dayOpen ? ' open' : '') + '">' +
+      html += '<section class="day' + (iso < today ? ' past' : '') + (dayOpen ? ' open' : '') + (anim.day === iso ? ' just' : '') + '">' +
         '<button type="button" class="day-head" data-day="' + iso + '" aria-expanded="' + dayOpen + '"><span class="date"><span class="d num">' + d.getDate() + '</span>' +
         '<span class="rest"><span class="wd">' + d.toLocaleDateString('it-IT', { weekday: 'long' }) + '</span>' +
         '<span class="when">' + whenText(iso, today) + '</span></span></span>' +
         '<span class="day-right"><span class="day-sum"><span><span class="day-kinds">' + dk.map(function (k) { return '<span class="dot" style="--c:' + (KINDS[k] || { color: 'var(--muted)' }).color + '"></span>'; }).join('') + '</span>' +
         '<b class="num">' + list.length + '</b> ' + (list.length === 1 ? 'turno' : 'turni') + ' · <span class="num">' + hm(lo) + (hi > lo ? '–' + hm(hi) : '') + '</span></span>' +
-        '<span class="num">' + (best > 0 ? 'fino a <b>' + best + '</b> posti liberi' : 'esaurito') + ' · da <b>' + eur(from) + '</b></span></span>' +
+        '<span class="num">' + (best > 0 ? 'fino a <b>' + best + '</b> posti liberi' : 'esaurito') + '</span></span>' +
         '<span class="day-chev" aria-hidden="true">▶</span></span></button>';
       if (!dayOpen) { html += '</section>'; return; }
-      html += strip(list) + '<div class="rows">';
-      list.forEach(function (t) {
+      html += '<div class="day-body' + (anim.day === iso ? ' enter' : '') + '"><div class="day-inner">' + strip(list) + '<div class="rows">';
+      list.forEach(function (t, i) {
         var k = kindOf(t), s = seatInfo(t), open = state.open === t.id;
-        html += '<button type="button" class="row" data-open="' + t.id + '" aria-expanded="' + open + '"' + (open ? ' aria-controls="d-' + t.id + '"' : '') + '>' +
+        html += '<button type="button" class="row' + (anim.turn === t.id ? ' just' : '') + '" style="--i:' + i + '" data-open="' + t.id + '" aria-expanded="' + open + '"' + (open ? ' aria-controls="d-' + t.id + '"' : '') + '>' +
           '<span class="time num">' + hm(t.start) + (t.end ? ' – ' + hm(t.end) : '') + '</span>' +
           '<span class="kind"><span class="dot" style="--c:' + k.color + '"></span><span>' + esc(k.name) + '</span><span class="n">turno ' + t.n + '</span></span>' +
           '<span class="seats num" style="--s:' + s.color + '">' + s.text + '</span>' +
           '<span class="price num">' + eur(iso === today ? t.sameDay : t.price) + '</span><span class="chev" aria-hidden="true">▶</span></button>';
-        if (open) html += detail(t, today);
+        if (open) html += '<div class="det-wrap' + (anim.turn === t.id ? ' enter' : '') + '"><div class="det-inner">' + detail(t, today) + '</div></div>';
       });
-      html += '</div></section>';
+      html += '</div></div></div></section>';
     });
 
     if (!html) {
@@ -319,6 +341,7 @@ footer a { color: var(--accent); }
       html = '<div class="empty">' + msg + '</div>';
     }
     document.getElementById('days').innerHTML = html;
+    anim = {};
     var u = new Date(DATA.updated);
     document.getElementById('stamp').textContent = 'Dati letti dal sito di Vallelunga il ' + u.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) + ' alle ' + u.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '. Aggiornamento automatico ogni 15 minuti circa.';
   }
@@ -327,13 +350,22 @@ footer a { color: var(--accent); }
     var b = e.target.closest('button'); if (!b || !DATA) return;
     if (b.dataset.mode) { state.mode = b.dataset.mode; state.kinds = {}; state.open = null; try { localStorage.setItem('vl-mode', state.mode); } catch (x) {} }
     else if (b.dataset.kind) state.kinds[b.dataset.kind] = !state.kinds[b.dataset.kind];
-    else if (b.dataset.day) { state.days[b.dataset.day] = b.getAttribute('aria-expanded') !== 'true'; if (!state.days[b.dataset.day]) state.open = null; }
+    else if (b.dataset.day) {
+      var iso = b.dataset.day, sec = b.closest('.day'), refocus = function () { var h = document.querySelector('.day-head[data-day="' + iso + '"]'); if (h) h.focus({ preventScroll: true }); };
+      if (b.getAttribute('aria-expanded') === 'true') {
+        sec.classList.add('closing');
+        later(sec.querySelector('.day-body'), 'leave', function () { state.days[iso] = false; state.open = null; render(); refocus(); });
+      } else { state.days[iso] = true; anim.day = iso; render(); refocus(); }
+      return;
+    }
     else if (b.dataset.open) {
       var id = b.dataset.open, fromStrip = b.classList.contains('slot');
-      state.open = (state.open === id && !fromStrip) ? null : id;
-      render();
-      var row = document.querySelector('.row[data-open="' + id + '"]');
-      if (row) { row.focus({ preventScroll: !fromStrip }); if (fromStrip) row.scrollIntoView({ block: 'nearest' }); }
+      var next = (state.open === id && !fromStrip) ? null : id;
+      var focusRow = function () { var row = document.querySelector('.row[data-open="' + id + '"]'); if (row) { row.focus({ preventScroll: !fromStrip }); if (fromStrip) row.scrollIntoView({ block: 'nearest' }); } };
+      var openWrap = state.open ? document.querySelector('.row[data-open="' + state.open + '"] + .det-wrap') : null;
+      var swap = function () { state.open = next; if (next) anim.turn = next; render(); focusRow(); };
+      if (openWrap && state.open !== next) { var r = openWrap.previousElementSibling; if (r) r.classList.add('closing'); later(openWrap, 'leave', swap); }
+      else if (state.open !== next) swap();
       return;
     } else return;
     render();
