@@ -57,6 +57,9 @@ h1 { font: 700 30px/1.1 var(--display); margin: 0; letter-spacing: -0.01em; }
 .toggles { display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .tog { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); cursor: pointer; }
 .tog input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.tog input[type="range"] { width: 140px; height: auto; }
+#min-free-label { min-width: 11.5em; text-align: right; }
+@media (max-width: 620px) { #min-free-label { min-width: 0; text-align: left; } }
 
 .day { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .day.past { opacity: .62; }
@@ -134,7 +137,7 @@ footer a { color: var(--accent); }
   <div class="bar">
     <div class="chips" id="chips" role="group" aria-label="Tipologia di turno"></div>
     <div class="toggles">
-      <label class="tog" for="only-free"><input type="checkbox" id="only-free" checked> Solo con posti liberi</label>
+      <label class="tog" for="min-free"><span id="min-free-label" class="num">Almeno 1 posto libero</span><input type="range" id="min-free" min="0" max="40" step="1" value="1"></label>
       <label class="tog" for="show-past"><input type="checkbox" id="show-past"> Date passate</label>
     </div>
   </div>
@@ -160,7 +163,7 @@ footer a { color: var(--accent); }
     GA: { name: 'Gruppo A', color: 'var(--grp)' }, GB: { name: 'Gruppo B', color: 'var(--str)' },
     GC: { name: 'Gruppo C', color: 'var(--neo)' }, GD: { name: 'Gruppo D', color: 'var(--rac)' }
   };
-  var state = { mode: 'auto', onlyFree: true, showPast: false, kinds: {}, open: null };
+  var state = { mode: 'auto', minFree: 1, showPast: false, kinds: {}, open: null };
   try { var m = localStorage.getItem('vl-mode'); if (m === 'auto' || m === 'moto') state.mode = m; } catch (e) {}
 
   function mins(s) { var p = String(s).replace(',', '.').split('.'); return (+p[0]) * 60 + (+(p[1] || 0)); }
@@ -252,18 +255,22 @@ footer a { color: var(--accent); }
       return '<button type="button" class="chip" data-kind="' + k + '" aria-pressed="' + !!state.kinds[k] + '"><span class="dot" style="--c:' + K.color + '"></span>' + K.name + '</button>';
     }).join('') : '';
 
+    var cap = 1; all.forEach(function (t) { if (t.free > cap) cap = t.free; });
+    if (state.minFree > cap) state.minFree = cap;
+    var rng = document.getElementById('min-free'); rng.max = cap; rng.value = state.minFree;
+    document.getElementById('min-free-label').textContent = state.minFree === 0 ? 'Tutti, anche esauriti' : state.minFree === 1 ? 'Almeno 1 posto libero' : 'Almeno ' + state.minFree + ' posti liberi';
+
     var future = all.filter(function (t) { return t.date >= today; });
     var pool = state.showPast ? all : future;
-    var shown = pool.filter(function (t) { return (!state.onlyFree || t.free > 0) && (!anySel || state.kinds[t.kind]); });
+    var shown = pool.filter(function (t) { return (state.minFree === 0 || t.free >= state.minFree) && (!anySel || state.kinds[t.kind]); });
     var byDay = {}; shown.forEach(function (t) { (byDay[t.date] = byDay[t.date] || []).push(t); });
     var html = '';
     Object.keys(byDay).sort().forEach(function (iso) {
-      var list = byDay[iso], d = dayDate(iso), free = 0;
-      list.forEach(function (t) { if (t.free > 0) free += t.free; });
+      var list = byDay[iso], d = dayDate(iso);
       html += '<section class="day' + (iso < today ? ' past' : '') + '"><div class="day-head"><div class="date"><span class="d num">' + d.getDate() + '</span>' +
         '<span class="rest"><span class="wd">' + d.toLocaleDateString('it-IT', { weekday: 'long' }) + ', ' + d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }) + '</span>' +
         '<span class="when">' + whenText(iso, today) + '</span></span></div>' +
-        '<div class="day-sum"><b class="num">' + list.length + '</b> ' + (list.length === 1 ? 'turno' : 'turni') + ' · <b class="num">' + free + '</b> posti liberi in totale</div></div>' +
+        '<div class="day-sum"><b class="num">' + list.length + '</b> ' + (list.length === 1 ? 'turno' : 'turni') + '</div></div>' +
         strip(list) + '<div class="rows">';
       list.forEach(function (t) {
         var k = kindOf(t), s = seatInfo(t), open = state.open === t.id;
@@ -283,8 +290,10 @@ footer a { color: var(--accent); }
         var last = all.length ? dayDate(all[all.length - 1].date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
         msg = '<strong>Nessuna data ' + what + ' in calendario</strong>Sul sito di Vallelunga non ci sono giornate ' + what + ' future in vendita.' +
           (last ? ' Ultima giornata: ' + last + '. Attiva «Date passate» per rivederla.' : '');
-      } else if (state.onlyFree && pool.length) {
-        msg = '<strong>Tutto esaurito</strong>Nessun turno con posti liberi per questi filtri. Togli «Solo con posti liberi» per vedere anche quelli esauriti.';
+      } else if (state.minFree > 0 && pool.length) {
+        msg = state.minFree === 1
+          ? '<strong>Tutto esaurito</strong>Nessun turno con posti liberi. Porta il cursore dei posti a zero per vedere anche quelli esauriti.'
+          : '<strong>Nessun turno così libero</strong>Nessun turno ha almeno ' + state.minFree + ' posti liberi. Abbassa il cursore dei posti.';
       } else msg = '<strong>Nessun turno</strong>Nessun turno corrisponde ai filtri scelti.';
       html = '<div class="empty">' + msg + '</div>';
     }
@@ -307,7 +316,7 @@ footer a { color: var(--accent); }
     } else return;
     render();
   });
-  document.getElementById('only-free').addEventListener('change', function (e) { state.onlyFree = e.target.checked; if (DATA) render(); });
+  document.getElementById('min-free').addEventListener('input', function (e) { state.minFree = +e.target.value; if (DATA) render(); });
   document.getElementById('show-past').addEventListener('change', function (e) { state.showPast = e.target.checked; if (DATA) render(); });
   function load() {
     return fetch('data.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) {
