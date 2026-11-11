@@ -64,6 +64,8 @@ h1 { font: 700 30px/1.1 var(--display); margin: 0; letter-spacing: -0.01em; }
 
 .day { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .day.past { opacity: .62; }
+.month { font: 600 20px/1.2 var(--display); margin: 10px 0 -4px; text-transform: capitalize; text-wrap: balance; }
+.month:first-child { margin-top: 0; }
 .day-head { width: 100%; text-align: left; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 16px 18px; }
 .day-head:hover { background: var(--surface-2); }
 .day.open .day-head { padding-bottom: 12px; }
@@ -272,8 +274,9 @@ footer a { color: var(--accent); }
     var pool = state.showPast ? all : future;
     var shown = pool.filter(function (t) { return (state.minFree === 0 || t.free >= state.minFree) && (!anySel || state.kinds[t.kind]); });
     var byDay = {}; shown.forEach(function (t) { (byDay[t.date] = byDay[t.date] || []).push(t); });
-    var html = '', nDays = Object.keys(byDay).length;
+    var html = '', nDays = Object.keys(byDay).length, lastMonth = '';
     Object.keys(byDay).sort().forEach(function (iso) {
+      if (iso.slice(0, 7) !== lastMonth) { lastMonth = iso.slice(0, 7); html += '<h2 class="month">' + dayDate(iso).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }) + '</h2>'; }
       var list = byDay[iso], d = dayDate(iso), dayOpen = !!state.days[iso] || nDays === 1;
       var lo = Math.min.apply(null, list.map(function (t) { return t.start; }));
       var hi = Math.max.apply(null, list.map(function (t) { return t.end || t.start; }));
@@ -282,7 +285,7 @@ footer a { color: var(--accent); }
       var dk = []; list.forEach(function (t) { if (dk.indexOf(t.kind) < 0) dk.push(t.kind); });
       html += '<section class="day' + (iso < today ? ' past' : '') + (dayOpen ? ' open' : '') + '">' +
         '<button type="button" class="day-head" data-day="' + iso + '" aria-expanded="' + dayOpen + '"><span class="date"><span class="d num">' + d.getDate() + '</span>' +
-        '<span class="rest"><span class="wd">' + d.toLocaleDateString('it-IT', { weekday: 'long' }) + ', ' + d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }) + '</span>' +
+        '<span class="rest"><span class="wd">' + d.toLocaleDateString('it-IT', { weekday: 'long' }) + '</span>' +
         '<span class="when">' + whenText(iso, today) + '</span></span></span>' +
         '<span class="day-right"><span class="day-sum"><span><span class="day-kinds">' + dk.map(function (k) { return '<span class="dot" style="--c:' + (KINDS[k] || { color: 'var(--muted)' }).color + '"></span>'; }).join('') + '</span>' +
         '<b class="num">' + list.length + '</b> ' + (list.length === 1 ? 'turno' : 'turni') + ' · <span class="num">' + hm(lo) + (hi > lo ? '–' + hm(hi) : '') + '</span></span>' +
