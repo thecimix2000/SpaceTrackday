@@ -35,7 +35,7 @@ jobs:
       - name: Salva i dati se sono cambiati
         if: steps.fetch.outputs.changed == 'true'
         run: |
-          git config user.name "track-day-vl-bot"
+          git config user.name "trackday-vl-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data.json
           git commit -m "Aggiorna turni" && git push
