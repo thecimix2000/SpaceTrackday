@@ -2,7 +2,7 @@ name: Aggiorna turni e pubblica
 
 on:
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '0,15,30,45 * * * *'
   push:
     branches: [main]
   workflow_dispatch:
