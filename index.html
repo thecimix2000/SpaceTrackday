@@ -373,7 +373,7 @@ footer a { color: var(--accent); }
   document.getElementById('min-free').addEventListener('input', function (e) { state.minFree = +e.target.value; if (DATA) render(); });
   document.getElementById('show-past').addEventListener('change', function (e) { state.showPast = e.target.checked; if (DATA) render(); });
   // Indirizzo del lettore dati su Cloudflare (legge Vallelunga all'apertura). Se manca o non risponde, si usa data.json.
-  var LIVE_URL = '';
+  var LIVE_URL = 'https://spacetrackday.thecimix2000.workers.dev/';
   function getJSON(u) { return fetch(u, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
   function load() {
     var live = LIVE_URL ? getJSON(LIVE_URL).then(function (d) { if (!d || !d.auto) throw new Error('vuoto'); return d; }) : Promise.reject();
