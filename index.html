@@ -343,7 +343,7 @@ footer a { color: var(--accent); }
     document.getElementById('days').innerHTML = html;
     anim = {};
     var u = new Date(DATA.updated);
-    document.getElementById('stamp').textContent = 'Dati letti dal sito di Vallelunga il ' + u.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) + ' alle ' + u.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '. Aggiornamento automatico ogni 15 minuti circa.';
+    document.getElementById('stamp').textContent = 'Dati letti dal sito di Vallelunga il ' + u.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) + ' alle ' + u.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + (LIVE_URL ? '. I dati si aggiornano quando apri o ricarichi la pagina.' : '. Aggiornamento automatico ogni 15 minuti circa.');
   }
 
   document.addEventListener('click', function (e) {
@@ -372,11 +372,13 @@ footer a { color: var(--accent); }
   });
   document.getElementById('min-free').addEventListener('input', function (e) { state.minFree = +e.target.value; if (DATA) render(); });
   document.getElementById('show-past').addEventListener('change', function (e) { state.showPast = e.target.checked; if (DATA) render(); });
+  // Indirizzo del lettore dati su Cloudflare (legge Vallelunga all'apertura). Se manca o non risponde, si usa data.json.
+  var LIVE_URL = '';
+  function getJSON(u) { return fetch(u, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
   function load() {
-    return fetch('data.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) {
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
-    }).then(function (d) { DATA = d; render(); }).catch(function () {
+    var live = LIVE_URL ? getJSON(LIVE_URL).then(function (d) { if (!d || !d.auto) throw new Error('vuoto'); return d; }) : Promise.reject();
+    return live.catch(function () { return getJSON('data.json?t=' + Date.now()); })
+    .then(function (d) { DATA = d; render(); }).catch(function () {
       if (!DATA) document.getElementById('days').innerHTML = '<div class="empty"><strong>Dati non disponibili</strong>Non riesco a caricare i turni in questo momento. Ricarica la pagina tra poco.</div>';
     });
   }
