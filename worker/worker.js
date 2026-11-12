@@ -1,13 +1,13 @@
 // Trackday VL – legge i turni dal calendario prove libere di Vallelunga quando qualcuno apre il sito.
 // Tiene la lettura per 5 minuti; se Vallelunga non risponde, restituisce l'ultima lettura buona.
-// Un calendario vuoto viene accettato solo se resta vuoto per 48 ore di fila (prima si considera un errore temporaneo).
+// Un calendario vuoto viene accettato solo se resta vuoto per 36 ore di fila (prima si considera un errore temporaneo).
 // Richiede il collegamento KV "STORE" (ultima lettura buona e inizio del periodo vuoto).
 
 const ENDPOINT = 'https://motorsport.vallelunga.it/wp-admin/admin-ajax.php';
 const SHOP = 'https://motorsport.vallelunga.it/shop/';
 const SEDI = { moto: 3, auto: 4 };
 const FRESH_SECONDS = 300;
-const EMPTY_ACCEPT_MS = 48 * 3600 * 1000;
+const EMPTY_ACCEPT_MS = 36 * 3600 * 1000;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
