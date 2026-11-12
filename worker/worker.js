@@ -1,15 +1,18 @@
 // Trackday VL – legge i turni dal calendario prove libere di Vallelunga quando qualcuno apre il sito.
-// Tiene la lettura per 5 minuti; se Vallelunga non risponde, restituisce l'ultima lettura buona (fino a 7 giorni).
+// Tiene la lettura per 5 minuti; se Vallelunga non risponde, restituisce l'ultima lettura buona.
+// Un calendario vuoto viene accettato solo se resta vuoto per 48 ore di fila (prima si considera un errore temporaneo).
+// Richiede il collegamento KV "STORE" (ultima lettura buona e inizio del periodo vuoto).
 
 const ENDPOINT = 'https://motorsport.vallelunga.it/wp-admin/admin-ajax.php';
 const SHOP = 'https://motorsport.vallelunga.it/shop/';
 const SEDI = { moto: 3, auto: 4 };
 const FRESH_SECONDS = 300;
-const BACKUP_SECONDS = 7 * 24 * 3600;
+const EMPTY_ACCEPT_MS = 48 * 3600 * 1000;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Expose-Headers': 'X-State',
 };
 
 function iso(d) { return d.toISOString().slice(0, 10) + 'T00:00:00+01:00'; }
@@ -49,16 +52,41 @@ async function readVallelunga() {
   const sort = (a, b) => (a[0] + a[2]).localeCompare(b[0] + b[2]);
   let [moto, auto] = await Promise.all([fetchSede(SEDI.moto), fetchSede(SEDI.auto)]);
   if (!moto.length && !auto.length) {
-    // A volte Vallelunga risponde per qualche minuto con un calendario vuoto: riprova una volta, poi considera la lettura non valida.
+    // A volte Vallelunga risponde per qualche minuto con un calendario vuoto: riprova una volta.
     await new Promise((r) => setTimeout(r, 1500));
     [moto, auto] = await Promise.all([fetchSede(SEDI.moto), fetchSede(SEDI.auto)]);
-    if (!moto.length && !auto.length) throw new Error('calendario vuoto');
   }
-  return { updated: new Date().toISOString(), shop: SHOP, packs, moto: moto.map(row).sort(sort), auto: auto.map(row).sort(sort) };
+  return { updated: new Date().toISOString(), shop: SHOP, packs, moto: moto.map(row).sort(sort), auto: auto.map(row).sort(sort), empty: !moto.length && !auto.length };
 }
 
 function reply(body, maxAge, extra) {
   return new Response(body, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=' + maxAge, ...CORS, ...extra } });
+}
+
+async function decide(env) {
+  let data;
+  try { data = await readVallelunga(); }
+  catch (err) {
+    const backup = await env.STORE.get('backup');
+    if (backup) return { body: backup, state: 'stale' };
+    throw err;
+  }
+  const empty = data.empty; delete data.empty;
+  const body = JSON.stringify(data);
+  if (!empty) {
+    const tasks = [env.STORE.put('backup', body)];
+    if (await env.STORE.get('emptySince')) tasks.push(env.STORE.delete('emptySince'));
+    await Promise.all(tasks);
+    return { body, state: 'fresh' };
+  }
+  let since = Number(await env.STORE.get('emptySince'));
+  if (!since) { since = Date.now(); await env.STORE.put('emptySince', String(since)); }
+  const backup = await env.STORE.get('backup');
+  if (!backup || Date.now() - since >= EMPTY_ACCEPT_MS) {
+    if (backup) await env.STORE.put('backup', body);
+    return { body, state: 'empty' };
+  }
+  return { body: backup, state: 'empty-wait' };
 }
 
 export default {
@@ -68,22 +96,15 @@ export default {
     if (url.pathname !== '/' && url.pathname !== '/data.json') return new Response('Not found', { status: 404, headers: CORS });
 
     const cache = caches.default;
-    const freshKey = new Request(url.origin + '/__fresh-v2');
-    const backupKey = new Request(url.origin + '/__backup-v2');
-
+    const freshKey = new Request(url.origin + '/__fresh-v3');
     const hit = await cache.match(freshKey);
-    if (hit) return reply(await hit.text(), 60, { 'X-Cache': 'hit' });
+    if (hit) return reply(await hit.text(), 60, { 'X-State': 'cache' });
 
     try {
-      const body = JSON.stringify(await readVallelunga());
-      ctx.waitUntil(Promise.all([
-        cache.put(freshKey, reply(body, FRESH_SECONDS)),
-        cache.put(backupKey, reply(body, BACKUP_SECONDS)),
-      ]));
-      return reply(body, 60, { 'X-Cache': 'miss' });
+      const { body, state } = await decide(env);
+      ctx.waitUntil(cache.put(freshKey, reply(body, FRESH_SECONDS)));
+      return reply(body, 60, { 'X-State': state });
     } catch (err) {
-      const old = await cache.match(backupKey);
-      if (old) return reply(await old.text(), 30, { 'X-Cache': 'stale' });
       return new Response(JSON.stringify({ error: 'Vallelunga non risponde' }), { status: 502, headers: { 'Content-Type': 'application/json', ...CORS } });
     }
   },
