@@ -47,7 +47,13 @@ async function readVallelunga() {
       e.prezzo, e.prezzo_assicurato, e.prezzo_ultimo_giorno, e.posti_liberi];
   };
   const sort = (a, b) => (a[0] + a[2]).localeCompare(b[0] + b[2]);
-  const [moto, auto] = await Promise.all([fetchSede(SEDI.moto), fetchSede(SEDI.auto)]);
+  let [moto, auto] = await Promise.all([fetchSede(SEDI.moto), fetchSede(SEDI.auto)]);
+  if (!moto.length && !auto.length) {
+    // A volte Vallelunga risponde per qualche minuto con un calendario vuoto: riprova una volta, poi considera la lettura non valida.
+    await new Promise((r) => setTimeout(r, 1500));
+    [moto, auto] = await Promise.all([fetchSede(SEDI.moto), fetchSede(SEDI.auto)]);
+    if (!moto.length && !auto.length) throw new Error('calendario vuoto');
+  }
   return { updated: new Date().toISOString(), shop: SHOP, packs, moto: moto.map(row).sort(sort), auto: auto.map(row).sort(sort) };
 }
 
@@ -62,8 +68,8 @@ export default {
     if (url.pathname !== '/' && url.pathname !== '/data.json') return new Response('Not found', { status: 404, headers: CORS });
 
     const cache = caches.default;
-    const freshKey = new Request(url.origin + '/__fresh');
-    const backupKey = new Request(url.origin + '/__backup');
+    const freshKey = new Request(url.origin + '/__fresh-v2');
+    const backupKey = new Request(url.origin + '/__backup-v2');
 
     const hit = await cache.match(freshKey);
     if (hit) return reply(await hit.text(), 60, { 'X-Cache': 'hit' });
