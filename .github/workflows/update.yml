@@ -1,10 +1,10 @@
 name: Aggiorna turni e pubblica
 
 on:
-  # Ogni 15 minuti, 3 minuti prima di ogni quarto d'ora (orari UTC; GitHub può partire in ritardo).
+  # Copia di riserva dei dati (il sito legge i turni dal lettore Cloudflare): ogni 3 ore circa.
   # Sito pubblicato su https://thecimix2000.github.io/SpaceTrackday/
   schedule:
-    - cron: '12,27,42,57 * * * *'
+    - cron: '17 */3 * * *'
   push:
     branches: [main]
   workflow_dispatch:
@@ -38,7 +38,8 @@ jobs:
           git config user.name "trackday-vl-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data.json
-          git commit -m "Aggiorna turni" && git push
+          git commit -m "Aggiorna turni"
+          git pull --rebase -q && git push || echo "Salvataggio dei dati saltato (verrà ritentato al prossimo giro)"
       - name: Prepara il sito
         run: mkdir _site && cp index.html data.json favicon.svg _site/
       - uses: actions/upload-pages-artifact@v3
@@ -46,3 +47,5 @@ jobs:
           path: _site
       - id: deploy
         uses: actions/deploy-pages@v4
+        # Negli aggiornamenti automatici un intoppo temporaneo di GitHub non deve far fallire tutto: il sito resta quello di prima.
+        continue-on-error: ${{ github.event_name == 'schedule' }}
